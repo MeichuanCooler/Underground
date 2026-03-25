@@ -1,0 +1,186 @@
+<template>
+  <div>
+    <el-row style="margin-bottom: 60px" :gutter="10">
+      <el-col :span="6">
+        <el-card>
+          <div style="color: #1ba784"><i class="el-icon-user"/> 师生总数</div>
+          <div style="padding: 10px; font-weight: bold">
+            <el-tag>{{ this.userTotal || 0 }}</el-tag>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card>
+          <div style="color:#5e665b;"><i class="el-icon-tickets"/> 今日请假人数</div>
+          <div style="padding: 10px; font-weight: bold">
+            <el-tag type="info">{{ this.userNum || 0 }}</el-tag>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card>
+          <div style="color:#f26b1f;"><i class="el-icon-link"/> 今日迟到人数</div>
+          <div style="padding: 10px; font-weight: bold">
+            <el-tag type="warning">未统计</el-tag>
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card>
+          <div style="color:#c02c38;"><i class="el-icon-ship"/> 今日旷课人数</div>
+          <div style="padding: 10px; font-weight: bold">
+            <el-tag type="danger">未统计</el-tag>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+    <el-row :gutter="10">
+      <el-col :span="12">
+        <el-card id="lineMain" style="width: 100%; height: 400px"></el-card>
+      </el-col>
+      <el-col :span="12">
+        <el-card id="pieMain" style="width: 100%; height: 400px"></el-card>
+      </el-col>
+    </el-row>
+  </div>
+</template>
+
+<script>
+import * as echarts from 'echarts';
+
+export default {
+  name: "Home",
+  data() {
+    return {
+      userTotal: 0,
+      userNum: 0,
+    }
+  },
+  //页面渲染后触发
+  mounted() {
+    const lineChartDom = document.getElementById('lineMain');
+    const pieChartDom = document.getElementById('pieMain');
+    const lineChart = echarts.init(lineChartDom);
+    const pieChart = echarts.init(pieChartDom);
+    const lineOption = {
+      title: {
+        text: '每日请假人数统计图',
+        left: 'center',
+      },
+      toolbox: {
+        show: true,
+        feature: {
+          dataZoom: {
+            yAxisIndex: 'none'
+          },
+          dataView: { readOnly: false },
+          magicType: { type: ['line', 'bar'] },
+          restore: {},
+          saveAsImage: {}
+        }
+      },
+      tooltip: {
+        trigger: 'axis'
+      },
+      xAxis: {
+        type: 'category',
+        data: []
+      },
+      yAxis: {
+        type: 'value'
+      },
+      series: [
+        {
+          data: [],
+          type: 'line',
+          smooth: true
+        }
+      ]
+    }
+    const pieOption = {
+      title: {
+        text: '每日请假人数统计图',
+        left: 'center'
+      },
+      toolbox: {
+        show: true,
+        feature: {
+          dataView: { readOnly: false },
+          restore: {},
+          saveAsImage: {}
+        }
+      },
+      tooltip: {
+        trigger: 'item'
+      },
+      legend: {
+        orient: 'vertical',
+        left: 'left'
+      },
+      series: [
+        {
+          name: '请假人数',
+          type: 'pie',
+          radius: '50%',
+          data: [],
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            }
+          }
+        }
+      ]
+    }
+
+    // 获取请假数据并渲染图表
+    this.$axios.get("/check/homeList").then(res => {
+      try {
+        // 空值校验：确保数据存在
+        const lineData = res.data?.data || { x: [], y: [] };
+        if (!lineData.x || !lineData.y) return;
+
+        let pieData = [];
+        for (let i = 0; i < lineData.x.length; i++) {
+          pieData.push({ name: lineData.x[i], value: lineData.y[i] });
+        }
+        lineOption.xAxis.data = lineData.x;
+        lineOption.series[0].data = lineData.y;
+        pieOption.series[0].data = pieData;
+        lineChart.setOption(lineOption);
+        pieChart.setOption(pieOption);
+
+        // 计算今日请假人数
+        const curDate = new Date();
+        const formatDate = `${curDate.getFullYear()}-${("0" + (curDate.getMonth() + 1)).slice(-2)}-${("0" + curDate.getDate()).slice(-2)}`;
+        for (let i = 0; i < lineData.x.length; i++) {
+          if (lineData.x[i] === formatDate) {
+            this.userNum = lineData.y[i];
+          }
+        }
+      } catch (e) {
+        console.log("ECharts数据渲染失败：", e);
+      }
+    }).catch(err => {
+      console.log("获取请假数据失败：", err);
+    });
+
+    // 获取学校总人数
+    this.$axios.get("/user/total").then(res => {
+      try {
+        if (res.data?.code === 200) {
+          this.userTotal = res.data.data || 0;
+        }
+      } catch (e) {
+        console.log("获取总人数失败：", e);
+      }
+    }).catch(err => {
+      console.log("获取总人数接口报错：", err);
+    });
+  },
+}
+</script>
+
+<style scoped>
+</style>
